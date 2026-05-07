@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AtoB Customer Quality Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d27;
+  --surface2: #222635;
+  --border: rgba(255,255,255,0.08);
+  --border2: rgba(255,255,255,0.14);
+  --text: #f0f2f8;
+  --muted: #8890a8;
+  --amber: #f5a623;
+  --amber-dim: rgba(245,166,35,0.12);
+  --teal: #2dd4bf;
+  --teal-dim: rgba(45,212,191,0.1);
+  --red: #f87171;
+  --red-dim: rgba(248,113,113,0.1);
+  --green: #4ade80;
+  --green-dim: rgba(74,222,128,0.1);
+  --blue: #60a5fa;
+  --blue-dim: rgba(96,165,250,0.1);
+  --mono: 'IBM Plex Mono', 'Courier New', monospace;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  font-size: 14px;
+}
+
+/* HEADER */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 28px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.header-brand { display: flex; align-items: center; gap: 12px; }
+.brand-pill {
+  background: var(--amber);
+  color: #000;
+  font-weight: 700;
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  letter-spacing: 0.1em;
+  font-family: var(--mono);
+}
+.header-title { font-size: 14px; font-weight: 500; color: var(--text); }
+.live-indicator { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); font-family: var(--mono); }
+.pulse { width: 8px; height: 8px; background: var(--green); border-radius: 50%; animation: blink 2s infinite; }
+@keyframes blink { 0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(74,222,128,0.4)} 50%{opacity:0.5;box-shadow:0 0 0 4px rgba(74,222,128,0)} }
+
+/* TABS */
+.tabs {
+  display: flex;
+  gap: 0;
+  padding: 0 28px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  padding: 12px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+  margin-bottom: -1px;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--amber); border-bottom-color: var(--amber); }
+.alert-dot { display: inline-block; width: 6px; height: 6px; background: var(--red); border-radius: 50%; margin-left: 6px; vertical-align: middle; }
+
+/* PAGES */
+.page { display: none; padding: 24px 28px; }
+.page.active { display: block; }
+
+/* KPI ROW */
+.kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px; }
+.kpi {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+.kpi-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 6px; }
+.kpi-val { font-family: var(--mono); font-size: 24px; font-weight: 500; line-height: 1; margin-bottom: 3px; }
+.kpi-sub { font-size: 11px; color: var(--muted); }
+.kpi.amber .kpi-val { color: var(--amber); }
+.kpi.teal .kpi-val { color: var(--teal); }
+.kpi.red .kpi-val { color: var(--red); }
+.kpi.green .kpi-val { color: var(--green); }
+
+/* TWO COLUMN */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+.three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+.col-2-1 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 20px; }
+
+/* CARD */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+.card-title { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+.card-title .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.dot-amber { background: var(--amber); }
+.dot-red { background: var(--red); }
+.dot-green { background: var(--green); }
+.dot-teal { background: var(--teal); }
+.dot-blue { background: var(--blue); }
+
+/* LIVE FEED */
+.feed { max-height: 260px; overflow-y: auto; }
+.feed::-webkit-scrollbar { width: 4px; }
+.feed::-webkit-scrollbar-track { background: transparent; }
+.feed::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+.feed-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  animation: fadeIn 0.4s ease;
+}
+.feed-item:last-child { border-bottom: none; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+.feed-icon { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; margin-top: 1px; }
+.feed-icon.txn { background: var(--teal-dim); color: var(--teal); }
+.feed-icon.new { background: var(--green-dim); color: var(--green); }
+.feed-icon.alert { background: var(--red-dim); color: var(--red); }
+.feed-icon.warn { background: var(--amber-dim); color: var(--amber); }
+.feed-text { flex: 1; line-height: 1.4; color: var(--text); }
+.feed-text .dim { color: var(--muted); }
+.feed-time { font-family: var(--mono); font-size: 10px; color: var(--muted); white-space: nowrap; padding-top: 2px; }
+
+/* ALERTS */
+.alert-card {
+  border-radius: 6px;
+  padding: 12px 14px;
+  border-left: 3px solid;
+  margin-bottom: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.alert-card.red { background: var(--red-dim); border-color: var(--red); }
+.alert-card.amber { background: var(--amber-dim); border-color: var(--amber); }
+.alert-card.teal { background: var(--teal-dim); border-color: var(--teal); }
+.alert-title { font-weight: 600; margin-bottom: 2px; }
+.alert-card.red .alert-title { color: var(--red); }
+.alert-card.amber .alert-title { color: var(--amber); }
+.alert-card.teal .alert-title { color: var(--teal); }
+.alert-body { color: var(--muted); }
+
+/* HEATMAP */
+.heatmap-wrap { overflow-x: auto; margin-top: 4px; }
+table.hm { border-collapse: collapse; width: 100%; font-family: var(--mono); font-size: 11px; }
+table.hm th { padding: 6px 8px; font-size: 10px; font-weight: 500; color: var(--muted); text-align: center; border-bottom: 1px solid var(--border); }
+table.hm th:first-child { text-align: left; color: var(--amber); }
+table.hm td { padding: 5px 8px; text-align: center; border: 1px solid rgba(255,255,255,0.04); font-size: 11px; }
+table.hm td:first-child { text-align: left; color: var(--muted); white-space: nowrap; border: none; border-right: 1px solid var(--border); }
+table.hm td.empty { color: rgba(255,255,255,0.15); background: rgba(255,255,255,0.02); }
+
+/* KEY */
+.key { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 14px; }
+.key-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+.key-swatch { width: 14px; height: 14px; border-radius: 2px; flex-shrink: 0; }
+
+/* CHART WRAP */
+.chart-wrap { position: relative; width: 100%; }
+
+/* ACTION TABLE */
+table.actions { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.actions th { padding: 8px 10px; border-bottom: 1px solid var(--border2); color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 500; text-align: left; }
+table.actions td { padding: 9px 10px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: top; line-height: 1.4; }
+table.actions tr:last-child td { border-bottom: none; }
+table.actions tr:hover td { background: rgba(255,255,255,0.02); }
+.badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 3px; font-family: var(--mono); }
+.badge.now { background: rgba(248,113,113,0.15); color: var(--red); }
+.badge.week { background: rgba(245,166,35,0.15); color: var(--amber); }
+.badge.ongoing { background: rgba(96,165,250,0.15); color: var(--blue); }
+
+/* SEGMENT PILLS */
+.seg-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 20px; }
+.seg-pill {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+.seg-pill-num { font-family: var(--mono); font-size: 28px; font-weight: 500; margin-bottom: 2px; }
+.seg-pill-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+.seg-pill-desc { font-size: 11px; color: var(--muted); line-height: 1.4; }
+.seg-pill.red .seg-pill-num, .seg-pill.red .seg-pill-label { color: var(--red); }
+.seg-pill.amber .seg-pill-num, .seg-pill.amber .seg-pill-label { color: var(--amber); }
+.seg-pill.blue .seg-pill-num, .seg-pill.blue .seg-pill-label { color: var(--blue); }
+
+/* DIVIDER */
+.section-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); margin: 20px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+
+/* STEP LIST */
+.steps { }
+.step { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.step:last-child { border-bottom: none; }
+.step-badge { background: var(--surface2); border: 1px solid var(--border2); border-radius: 4px; padding: 2px 8px; font-family: var(--mono); font-size: 10px; color: var(--muted); white-space: nowrap; height: fit-content; margin-top: 1px; }
+.step-content { flex: 1; font-size: 12px; line-height: 1.5; color: var(--text); }
+.step-content strong { color: var(--amber); font-weight: 600; display: block; margin-bottom: 2px; font-size: 12px; }
+
+/* FUNNEL BAR */
+.funnel { }
+.funnel-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.funnel-name { font-size: 11px; color: var(--muted); width: 150px; flex-shrink: 0; }
+.funnel-track { flex: 1; background: rgba(255,255,255,0.05); border-radius: 3px; height: 22px; overflow: hidden; }
+.funnel-fill { height: 100%; display: flex; align-items: center; padding: 0 8px; }
+.funnel-fill span { font-family: var(--mono); font-size: 11px; font-weight: 500; }
+.funnel-pct { font-family: var(--mono); font-size: 11px; color: var(--muted); width: 36px; text-align: right; }
+
+/* STAT ROW */
+.stat-row { display: flex; gap: 24px; margin-bottom: 16px; }
+.stat { }
+.stat-num { font-family: var(--mono); font-size: 20px; font-weight: 500; }
+.stat-lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+
+/* SCROLL */
+html { scroll-behavior: smooth; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-brand">
+    <div class="brand-pill">AtoB</div>
+    <div class="header-title">Customer Quality Dashboard</div>
+  </div>
+  <div class="live-indicator">
+    <div class="pulse"></div>
+    <span id="liveTime">Live · Mar–May 2021</span>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="showTab('summary',this)">Summary</button>
+  <button class="tab" onclick="showTab('cohort',this)">Cohort Analysis</button>
+  <button class="tab" onclick="showTab('risks',this)">Risks & Actions <span class="alert-dot"></span></button>
+</div>
+
+<!-- ══════════ SUMMARY ══════════ -->
+<div class="page active" id="page-summary">
+
+  <div class="kpi-row">
+    <div class="kpi">
+      <div class="kpi-label">Total Customers</div>
+      <div class="kpi-val" style="color:var(--text)">200</div>
+      <div class="kpi-sub">595 drivers total</div>
+    </div>
+    <div class="kpi amber">
+      <div class="kpi-label">Activated</div>
+      <div class="kpi-val">150</div>
+      <div class="kpi-sub">75% of signups</div>
+    </div>
+    <div class="kpi teal">
+      <div class="kpi-label">Transacting</div>
+      <div class="kpi-val">126</div>
+      <div class="kpi-sub">63% of signups</div>
+    </div>
+    <div class="kpi green">
+      <div class="kpi-label">Total Volume</div>
+      <div class="kpi-val">$253k</div>
+      <div class="kpi-sub">Mar 8 – May 17</div>
+    </div>
+    <div class="kpi red">
+      <div class="kpi-label">Not Spending</div>
+      <div class="kpi-val">74</div>
+      <div class="kpi-sub">activated customers</div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title"><span class="dot dot-green"></span>Live Activity Feed</div>
+      <div class="feed" id="liveFeed"></div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="dot dot-amber"></span>Weekly Volume ($)</div>
+      <div class="chart-wrap" style="height:220px">
+        <canvas id="volChart" role="img" aria-label="Weekly transaction volume bar chart">Weekly volume from $2,206 in Mar 8 to $54,202 peak in May 10.</canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px">
+    <div class="card-title"><span class="dot dot-red"></span>Customer Breakdown — Where Everyone Is Right Now</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:4px">
+      <div style="text-align:center;padding:12px;background:var(--red-dim);border:1px solid rgba(248,113,113,0.2);border-radius:6px">
+        <div style="font-family:var(--mono);font-size:26px;color:var(--red);font-weight:500">50</div>
+        <div style="font-size:11px;color:var(--red);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin:3px 0">Never Activated</div>
+        <div style="font-size:11px;color:var(--muted)">Signed up. Nothing happened.</div>
+      </div>
+      <div style="text-align:center;padding:12px;background:var(--amber-dim);border:1px solid rgba(245,166,35,0.2);border-radius:6px">
+        <div style="font-family:var(--mono);font-size:26px;color:var(--amber);font-weight:500">24</div>
+        <div style="font-size:11px;color:var(--amber);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin:3px 0">Card In Hand, $0</div>
+        <div style="font-size:11px;color:var(--muted)">Activated. Never swiped.</div>
+      </div>
+      <div style="text-align:center;padding:12px;background:rgba(248,113,113,0.06);border:1px solid rgba(248,113,113,0.15);border-radius:6px">
+        <div style="font-family:var(--mono);font-size:26px;color:var(--red);font-weight:500">3</div>
+        <div style="font-size:11px;color:var(--red);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin:3px 0">Churned 28d+</div>
+        <div style="font-size:11px;color:var(--muted)">Was spending. Stopped cold.</div>
+      </div>
+      <div style="text-align:center;padding:12px;background:var(--teal-dim);border:1px solid rgba(45,212,191,0.2);border-radius:6px">
+        <div style="font-family:var(--mono);font-size:26px;color:var(--teal);font-weight:500">126</div>
+        <div style="font-size:11px;color:var(--teal);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin:3px 0">Active & Spending</div>
+        <div style="font-size:11px;color:var(--muted)">Transacted in last 28d.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title"><span class="dot dot-teal"></span>Onboarding Funnel — All 595 Drivers</div>
+      <div class="funnel" id="funnelViz"></div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="dot dot-amber"></span>Fleet Size vs. Avg Spend</div>
+      <div class="chart-wrap" style="height:200px">
+        <canvas id="fleetChart" role="img" aria-label="Fleet size vs average spend bar chart">6+ driver customers average $7,450 vs $497 for 2-driver customers.</canvas>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════ COHORT ══════════ -->
+<div class="page" id="page-cohort">
+
+  <div class="key">
+    <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-right:4px">Key:</div>
+    <div class="key-item"><div class="key-swatch" style="background:#064e3b"></div>Low spend</div>
+    <div class="key-item"><div class="key-swatch" style="background:#047857"></div></div>
+    <div class="key-item"><div class="key-swatch" style="background:#10b981"></div></div>
+    <div class="key-item"><div class="key-swatch" style="background:#34d399"></div></div>
+    <div class="key-item"><div class="key-swatch" style="background:#6ee7b7"></div>High spend</div>
+    <div style="width:1px;background:var(--border);margin:0 8px"></div>
+    <div class="key-item"><span style="font-size:14px">—</span> No data yet for that week</div>
+    <div style="width:1px;background:var(--border);margin:0 8px"></div>
+    <div class="key-item"><div style="width:14px;height:2px;background:var(--teal)"></div>March cohorts (strong)</div>
+    <div class="key-item"><div style="width:14px;height:2px;background:var(--red);border-top:2px dashed var(--red)"></div>April cohorts (weak)</div>
+    <div class="key-item"><div style="width:14px;height:2px;background:var(--amber)"></div>May cohorts (watch)</div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title"><span class="dot dot-teal"></span>Cumulative Avg Spend Per Customer — By Activation Week</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:12px">Each cell = avg $ spent by customers in that cohort through that week since activation. Darker green = more spend.</div>
+    <div class="heatmap-wrap" id="heatmap"></div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title"><span class="dot dot-teal"></span>Spend Curves By Cohort</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Cumulative avg spend, weeks 0–9 since activation. March climbs. April flats out.</div>
+      <div class="chart-wrap" style="height:250px">
+        <canvas id="lineChart" role="img" aria-label="Cohort spend curve line chart">March cohorts reach $4k–$6.3k. April cohorts plateau below $700.</canvas>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="dot dot-amber"></span>Quality at Week 4</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px">First week all cohorts can be compared fairly. The March → April drop is stark.</div>
+      <div class="chart-wrap" style="height:250px">
+        <canvas id="w4Chart" role="img" aria-label="Week 4 quality snapshot bar chart">Mar cohorts: $1,300–$3,100. Apr cohorts: $258–$961.</canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="dot dot-red"></span>The Story in One Line</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:4px">
+      <div style="padding:14px;background:var(--teal-dim);border:1px solid rgba(45,212,191,0.15);border-radius:6px">
+        <div style="font-size:11px;color:var(--teal);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Mar-08 (best cohort)</div>
+        <div style="font-family:var(--mono);font-size:22px;color:var(--text)">$6,313</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">per customer by week 9</div>
+      </div>
+      <div style="padding:14px;background:var(--red-dim);border:1px solid rgba(248,113,113,0.15);border-radius:6px">
+        <div style="font-size:11px;color:var(--red);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Apr-12 (worst cohort)</div>
+        <div style="font-family:var(--mono);font-size:22px;color:var(--text)">$265</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">per customer by week 5</div>
+      </div>
+      <div style="padding:14px;background:var(--amber-dim);border:1px solid rgba(245,166,35,0.15);border-radius:6px">
+        <div style="font-size:11px;color:var(--amber);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">May-10 (newest, 29 cust.)</div>
+        <div style="font-family:var(--mono);font-size:22px;color:var(--text)">$941</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">week zero — highest ever</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════ RISKS ══════════ -->
+<div class="page" id="page-risks">
+
+  <div class="two-col">
+    <div>
+      <div class="section-label">🔴 Needs attention now</div>
+
+      <div class="alert-card red">
+        <div class="alert-title">96% drop in customer quality — March to April</div>
+        <div class="alert-body">Best March cohort: $6,313/customer. Best April cohort: $265/customer. That's not a bad month — something broke. Find the root cause before scaling further.</div>
+      </div>
+
+      <div class="alert-card red">
+        <div class="alert-title">74 customers who aren't spending at all</div>
+        <div class="alert-body">50 never activated. 24 activated but never swiped. Acquisition cost is already paid for all of them. Every day without a transaction is money left on the table.</div>
+      </div>
+
+      <div class="alert-card red">
+        <div class="alert-title">3 previously active accounts have gone quiet (28d+)</div>
+        <div class="alert-body">Customer #837 (46 days silent), #759 (34 days, $2,045 historical spend), #716 (33 days). These need a personal call this week — not an automated email.</div>
+      </div>
+
+      <div class="section-label" style="margin-top:20px">🟡 Watch closely</div>
+
+      <div class="alert-card amber">
+        <div class="alert-title">51 drivers stalled at bank verification</div>
+        <div class="alert-body">The single biggest funnel drop. 546 drivers verified email → 495 completed bank verification. That's a 51-driver hole. Probably a UX problem with the bank verification step — worth testing Plaid or instant verification.</div>
+      </div>
+
+      <div class="alert-card amber">
+        <div class="alert-title">May-10 cohort is the largest ever — and a real test</div>
+        <div class="alert-body">29 customers activated in one week. If they look like March at Week 4, something changed for the better. If they flatten like April, there's a structural issue that needs investigation before it gets worse.</div>
+      </div>
+
+      <div class="alert-card teal">
+        <div class="alert-title">5 more customers in the 14–27d silent window</div>
+        <div class="alert-body">Customers #670 ($1,812 spend), #757 ($1,457), #638, #1053, #989 haven't transacted in 14–27 days. These aren't churned yet. Reach out now.</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Action Plan — Re-engagement</div>
+
+      <div class="card" style="margin-bottom:14px">
+        <div style="font-size:12px;color:var(--amber);font-weight:600;margin-bottom:10px">Segment 1 — Activated, Never Transacted (24 people)</div>
+        <div class="steps">
+          <div class="step">
+            <div class="step-badge">Day 1</div>
+            <div class="step-content"><strong>Sort by fleet size</strong>3+ driver accounts are highest priority. Call those first — more drivers means more potential spend.</div>
+          </div>
+          <div class="step">
+            <div class="step-badge">Day 2–3</div>
+            <div class="step-content"><strong>Call them</strong>"Hey, noticed your card hasn't been used — is anything getting in the way? I can walk you through your first fill-up right now." Listen for: merchant gaps, card issues, or just forgot.</div>
+          </div>
+          <div class="step">
+            <div class="step-badge">Day 3–5</div>
+            <div class="step-content"><strong>Give them a reason to try it</strong>$0.05/gallon rebate on first $300 spend. Expires in 14 days. Create urgency to act.</div>
+          </div>
+          <div class="step">
+            <div class="step-badge">Day 5–7</div>
+            <div class="step-content"><strong>3-email sequence</strong>How to use the card → stations near their routes → savings comparison vs. competitors.</div>
+          </div>
+          <div class="step">
+            <div class="step-badge">Day 14</div>
+            <div class="step-content"><strong>Escalate or close</strong>Still nothing? Offer a 5-min setup call. At Day 21 with zero engagement — flag to AE as a possible fit issue and move on.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px">
+        <div style="font-size:12px;color:var(--red);font-weight:600;margin-bottom:10px">Segment 2 — Churned Transactors (3 people)</div>
+        <div class="steps">
+          <div class="step">
+            <div class="step-badge">Day 1</div>
+            <div class="step-content"><strong>Diagnose first</strong>Did spend drop gradually or stop dead? Sudden stop = card issue or competitor. Gradual = fleet change or business slowdown.</div>
+          </div>
+          <div class="step">
+            <div class="step-badge">Day 2</div>
+            <div class="step-content"><strong>Senior AE calls</strong>"We noticed a gap — did anything change with your fleet?" Don't lead with an offer. Just ask and actually listen.</div>
+          </div>
+          <div class="step">
+            <div class="step-badge">Day 7</div>
+            <div class="step-content"><strong>Win-back offer</strong>"Spend $500 in 30 days, get $25 fuel credit." Tie the incentive to actual behavior, not just goodwill.</div>
+          </div>
+          <div class="step">
+            <div class="step-badge">Day 30</div>
+            <div class="step-content"><strong>Decision point</strong>Still nothing? Custom offer from leadership. Completely unresponsive? Mark as lost, document why — it's useful for future ICP work.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="font-size:12px;color:var(--blue);font-weight:600;margin-bottom:10px">Segment 3 — Never Activated (50 people)</div>
+        <div class="steps">
+          <div class="step">
+            <div class="step-badge">Now</div>
+            <div class="step-content"><strong>Find where each person stopped</strong>Don't send 50 people the same email. Check where each one dropped — bank verification is the most common wall.</div>
+          </div>
+          <div class="step">
+            <div class="step-badge">Day 1</div>
+            <div class="step-content"><strong>Re-activation email</strong>"Your card is ready — takes 2 minutes." Deep link to their exact next step. Keep it very short.</div>
+          </div>
+          <div class="step">
+            <div class="step-badge">Day 3</div>
+            <div class="step-content"><strong>Call anyone with 3+ drivers</strong>Higher potential = worth the time. Offer to walk them through bank verification on the call.</div>
+          </div>
+          <div class="step">
+            <div class="step-badge">Day 14</div>
+            <div class="step-content"><strong>Last touch</strong>"Your account expires in 7 days — reply and we'll get it done in one call." After Day 21: archive and move on.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-label">How to know if this is working</div>
+  <div class="card">
+    <table class="actions">
+      <thead><tr><th>Metric</th><th>Target</th><th>Segment</th><th>By When</th></tr></thead>
+      <tbody>
+        <tr><td>Re-activation rate</td><td style="font-family:var(--mono);color:var(--teal)">≥ 40%</td><td>Activated, never transacted</td><td>30 days from first outreach</td></tr>
+        <tr><td>Win-back rate</td><td style="font-family:var(--mono);color:var(--teal)">≥ 30%</td><td>Churned transactors</td><td>30 days from first outreach</td></tr>
+        <tr><td>Days to first transaction</td><td style="font-family:var(--mono);color:var(--amber)">≤ 14 days</td><td>All new customers (ongoing)</td><td>From card delivery</td></tr>
+        <tr><td>Silence alert trigger</td><td style="font-family:var(--mono);color:var(--amber)">14 days</td><td>Any active customer</td><td>Daily automated check</td></tr>
+        <tr><td>May-10 cohort Week-4 spend</td><td style="font-family:var(--mono);color:var(--amber)">≥ $1,000</td><td>May-10 cohort</td><td>~June 7, 2021</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+// ─── DATA ───────────────────────────────────────────────────
+const cohortData = {
+  "Mar-08":  { size:5,  data:[435.78,1113.29,2002.85,2527.24,3103.27,3800.23,4438.65,4989.94,5621.03,6313.07] },
+  "Mar-15":  { size:17, data:[328.62,844.31,1218.63,1657.28,2144.88,2652.41,3055.84,3569.79,4024.01,4036.82] },
+  "Mar-22":  { size:16, data:[66.12,561.99,1142.78,1570.57,1919.73,2282.26,2670.63,3012.62,3034.48] },
+  "Mar-29":  { size:15, data:[216.60,430.29,740.84,1005.71,1330.58,1514.63,1824.03,1885.73] },
+  "Apr-05":  { size:11, data:[40.29,189.68,290.28,380.94,495.11,605.53,617.70] },
+  "Apr-12":  { size:9,  data:[61.82,108.52,152.38,216.26,257.95,265.09] },
+  "Apr-19":  { size:15, data:[41.67,267.10,443.69,591.09,638.42] },
+  "Apr-26":  { size:12, data:[202.41,566.53,907.96,961.10] },
+  "May-03":  { size:15, data:[1187.31,1453.45,1470.56] },
+  "May-10":  { size:29, data:[941.39,1019.47] },
+  "May-17":  { size:5,  data:[10.84] }
+};
+
+const weeklyVol = {
+  labels:["Mar 8","Mar 15","Mar 22","Mar 29","Apr 5","Apr 12","Apr 19","Apr 26","May 3","May 10","May 17"],
+  data:[2206,10323,16800,22055,26951,27279,25116,29899,33221,54202,5614]
+};
+
+// ─── TAB SWITCH ──────────────────────────────────────────────
+function showTab(id, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  btn.classList.add('active');
+  if(id === 'cohort' && !window.cohortDone) { renderCohort(); window.cohortDone = true; }
+}
+
+// ─── LIVE FEED ───────────────────────────────────────────────
+const feedEvents = [
+  { type:'txn', text:'Customer <strong>#1063</strong> · Driver 84 · <strong>$27.49</strong> at Merchant 7047', time:'just now' },
+  { type:'new', text:'New customer <strong>#1712</strong> activated · 3 drivers · fleet size: medium', time:'2m ago' },
+  { type:'txn', text:'Customer <strong>#944</strong> · Driver 211 · <strong>$45.89</strong> at Merchant 944', time:'4m ago' },
+  { type:'alert', text:'Customer <strong>#837</strong> · 46 days without a transaction — re-engagement needed', time:'8m ago' },
+  { type:'warn', text:'Customer <strong>#1175</strong> · Card activated, no spend yet · 5 drivers', time:'12m ago' },
+  { type:'txn', text:'Customer <strong>#706</strong> · Driver 103 · <strong>$19.27</strong> at Merchant 706', time:'15m ago' },
+  { type:'new', text:'New customer <strong>#1714</strong> signup email sent · awaiting verification', time:'18m ago' },
+  { type:'txn', text:'Customer <strong>#1268</strong> · Driver 56 · <strong>$38.64</strong> at Merchant 1268', time:'21m ago' },
+  { type:'warn', text:'Customer <strong>#716</strong> · 33 days silent · previously spent $39 total', time:'25m ago' },
+  { type:'txn', text:'Customer <strong>#3225</strong> · Driver 178 · <strong>$67.80</strong> at Merchant 3225', time:'28m ago' },
+  { type:'alert', text:'Bank verification stall · 51 drivers pending — review required', time:'32m ago' },
+  { type:'txn', text:'Customer <strong>#70</strong> · Driver 42 · <strong>$23.30</strong> at Merchant 70', time:'35m ago' },
+];
+
+const icons = { txn:'$', new:'+', alert:'!', warn:'⚠' };
+
+function buildFeed() {
+  const feed = document.getElementById('liveFeed');
+  feed.innerHTML = feedEvents.map(e => `
+    <div class="feed-item">
+      <div class="feed-icon ${e.type}">${icons[e.type]}</div>
+      <div class="feed-text">${e.text}</div>
+      <div class="feed-time">${e.time}</div>
+    </div>`).join('');
+}
+
+let feedIndex = 0;
+function addFeedItem() {
+  const types = ['txn','txn','txn','new','warn'];
+  const type = types[Math.floor(Math.random()*types.length)];
+  const amounts = [12.40,34.80,67.20,19.95,88.50,43.10,22.30,56.75];
+  const custIds = [1063,706,944,1268,457,3043,1849,3225];
+  const cid = custIds[Math.floor(Math.random()*custIds.length)];
+  let text = '';
+  if(type==='txn') text = `Customer <strong>#${cid}</strong> · <strong>$${amounts[Math.floor(Math.random()*amounts.length)].toFixed(2)}</strong> transaction processed`;
+  else if(type==='new') text = `New driver activation · Customer <strong>#${1700+Math.floor(Math.random()*20)}</strong>`;
+  else text = `Customer <strong>#${cid}</strong> · no transaction in ${14+Math.floor(Math.random()*10)} days`;
+
+  const feed = document.getElementById('liveFeed');
+  const item = document.createElement('div');
+  item.className = 'feed-item';
+  item.innerHTML = `<div class="feed-icon ${type}">${icons[type]}</div><div class="feed-text">${text}</div><div class="feed-time">just now</div>`;
+  feed.insertBefore(item, feed.firstChild);
+  // Update old times
+  feed.querySelectorAll('.feed-time').forEach((t,i) => {
+    if(i > 0) t.textContent = (i * 3) + 'm ago';
+  });
+  if(feed.children.length > 12) feed.removeChild(feed.lastChild);
+}
+
+buildFeed();
+setInterval(addFeedItem, 8000);
+
+// ─── SUMMARY CHARTS ──────────────────────────────────────────
+new Chart(document.getElementById('volChart'), {
+  type:'bar',
+  data:{
+    labels: weeklyVol.labels,
+    datasets:[{
+      data: weeklyVol.data,
+      backgroundColor: weeklyVol.data.map((v,i) => i===9?'#f5a623':i===10?'#4ade80':'#1e3a5f'),
+      borderRadius:3,
+      borderSkipped:false
+    }]
+  },
+  options:{
+    responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{display:false}},
+    scales:{
+      y:{ticks:{callback:v=>'$'+(v/1000).toFixed(0)+'k',font:{size:10},color:'#8890a8'},grid:{color:'rgba(255,255,255,0.05)'},border:{color:'transparent'}},
+      x:{ticks:{font:{size:10},color:'#8890a8'},grid:{display:false},border:{color:'transparent'}}
+    }
+  }
+});
+
+new Chart(document.getElementById('fleetChart'), {
+  type:'bar',
+  data:{
+    labels:['1 driver','2 drivers','3 drivers','4–5','6+'],
+    datasets:[{
+      label:'Avg spend',
+      data:[1001,497,641,853,7450],
+      backgroundColor:['#1e3a5f','#1e3a5f','#1e3a5f','#1e3a5f','#f5a623'],
+      borderRadius:3
+    }]
+  },
+  options:{
+    responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{display:false}},
+    scales:{
+      y:{ticks:{callback:v=>'$'+v.toLocaleString(),font:{size:10},color:'#8890a8'},grid:{color:'rgba(255,255,255,0.05)'},border:{color:'transparent'}},
+      x:{ticks:{font:{size:10},color:'#8890a8'},grid:{display:false},border:{color:'transparent'}}
+    }
+  }
+});
+
+// ─── FUNNEL ──────────────────────────────────────────────────
+const funnelSteps = [
+  {label:'Account Created',n:595,color:'#2dd4bf'},
+  {label:'Email Sent',n:590,color:'#34d399'},
+  {label:'Email Verified',n:546,color:'#f5a623'},
+  {label:'Bank Verified',n:495,color:'#f97316'},
+  {label:'Card Activated',n:466,color:'#f87171'},
+  {label:'Card Delivered',n:507,color:'#60a5fa'},
+];
+document.getElementById('funnelViz').innerHTML = funnelSteps.map(s => {
+  const pct = Math.round(s.n/595*100);
+  return `<div class="funnel-row">
+    <div class="funnel-name">${s.label}</div>
+    <div class="funnel-track"><div class="funnel-fill" style="width:${pct}%;background:${s.color}22;border-left:2px solid ${s.color}"><span style="color:${s.color}">${s.n}</span></div></div>
+    <div class="funnel-pct">${pct}%</div>
+  </div>`;
+}).join('');
+
+// ─── HEATMAP ─────────────────────────────────────────────────
+function heatColor(val) {
+  const stops = ['#064e3b','#065f46','#047857','#059669','#10b981','#34d399','#6ee7b7','#a7f3d0'];
+  const max = 6313;
+  if(!val) return 'rgba(255,255,255,0.03)';
+  const idx = Math.min(Math.floor(val/max*stops.length), stops.length-1);
+  return stops[idx];
+}
+function textColor(val) {
+  if(!val) return 'rgba(255,255,255,0.15)';
+  return val > 2500 ? '#fff' : '#d1fae5';
+}
+function fmt(v) {
+  if(!v) return '—';
+  return v >= 1000 ? '$'+(v/1000).toFixed(1)+'k' : '$'+Math.round(v);
+}
+
+const cohorts = Object.keys(cohortData);
+let html = '<table class="hm"><thead><tr><th>Cohort</th><th style="color:var(--muted)">n</th>';
+for(let w=0;w<=9;w++) html += `<th>Wk ${w}</th>`;
+html += '</tr></thead><tbody>';
+cohorts.forEach(c => {
+  const d = cohortData[c];
+  html += `<tr><td>${c}</td><td style="color:var(--muted);font-size:10px;text-align:center">${d.size}</td>`;
+  for(let w=0;w<=9;w++){
+    const v = d.data[w];
+    const bg = heatColor(v);
+    const tc = textColor(v);
+    html += `<td style="background:${bg};color:${tc}">${fmt(v)}</td>`;
+  }
+  html += '</tr>';
+});
+html += '</tbody></table>';
+document.getElementById('heatmap').innerHTML = html;
+
+// ─── COHORT CHARTS ───────────────────────────────────────────
+function renderCohort() {
+  const colors = {
+    'Mar-08':'#2dd4bf','Mar-15':'#0d9488','Mar-22':'#0f766e','Mar-29':'#115e59',
+    'Apr-05':'#f97316','Apr-12':'#f87171','Apr-19':'#fb923c','Apr-26':'#fbbf24',
+    'May-03':'#60a5fa','May-10':'#f5a623','May-17':'#a78bfa'
+  };
+  const dashes = {
+    'Mar-08':[],'Mar-15':[],'Mar-22':[],'Mar-29':[],
+    'Apr-05':[5,3],'Apr-12':[5,3],'Apr-19':[5,3],'Apr-26':[5,3],
+    'May-03':[3,3],'May-10':[3,3],'May-17':[3,3]
+  };
+
+  new Chart(document.getElementById('lineChart'), {
+    type:'line',
+    data:{
+      labels:['Wk 0','Wk 1','Wk 2','Wk 3','Wk 4','Wk 5','Wk 6','Wk 7','Wk 8','Wk 9'],
+      datasets: cohorts.map(c => ({
+        label:c, data:cohortData[c].data,
+        borderColor:colors[c], borderWidth:2,
+        borderDash:dashes[c], pointRadius:2,
+        fill:false, tension:0.3, spanGaps:true
+      }))
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        y:{ticks:{callback:v=>'$'+(v/1000).toFixed(1)+'k',font:{size:10},color:'#8890a8'},grid:{color:'rgba(255,255,255,0.05)'},border:{color:'transparent'}},
+        x:{ticks:{font:{size:10},color:'#8890a8'},grid:{display:false},border:{color:'transparent'}}
+      }
+    }
+  });
+
+  const w4cohorts = cohorts.filter(c=>cohortData[c].data[4]!==undefined);
+  new Chart(document.getElementById('w4Chart'), {
+    type:'bar',
+    data:{
+      labels:w4cohorts,
+      datasets:[{
+        data:w4cohorts.map(c=>cohortData[c].data[4]),
+        backgroundColor:w4cohorts.map(c=>c.startsWith('Mar')?'#0d9488':c.startsWith('Apr')?'#f87171':'#f5a623'),
+        borderRadius:3
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        y:{ticks:{callback:v=>'$'+v.toLocaleString(),font:{size:10},color:'#8890a8'},grid:{color:'rgba(255,255,255,0.05)'},border:{color:'transparent'}},
+        x:{ticks:{font:{size:10},color:'#8890a8',maxRotation:45},grid:{display:false},border:{color:'transparent'}}
+      }
+    }
+  });
+}
+
+// ─── LIVE CLOCK ─────────────────────────────────────────────
+function tick() {
+  const now = new Date();
+  const t = now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+  document.getElementById('liveTime').textContent = `Live · ${t}`;
+}
+tick(); setInterval(tick, 30000);
+</script>
+</body>
+</html>
